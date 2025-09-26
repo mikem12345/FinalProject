@@ -27,6 +27,99 @@ Original file is located at
 """
 
 import pandas as pd
+# ====== Awal blok yang bisa langsung kamu tempelkan ke data_scientist.py ======
+import streamlit as st
+import pandas as pd
+from pathlib import Path
+import os
+import logging
+
+st.set_page_config(page_title="Data Scientist App", layout="wide")
+logger = logging.getLogger(__name__)
+
+st.title("Data loader (Excel) — Robust")
+
+def try_read_excel(pathlike):
+    """Coba baca path (Path atau string). Kembalikan DataFrame atau raise."""
+    try:
+        return pd.read_excel(pathlike)
+    except Exception as e:
+        # jangan crash di sini — biarkan pemanggil memutuskan
+        raise
+
+def load_dataframe_with_fallback(filename="final_customer_data.xlsx"):
+    """Mencoba beberapa lokasi umum, lalu fallback ke uploader. Return df or None."""
+    candidate_paths = [
+        Path(__file__).resolve().parent / filename,  # di folder same file
+        Path.cwd() / filename,                        # working dir
+        Path("data") / filename,                      # data/ folder
+        Path("/content") / filename,                  # COLAB path fallback only
+        Path.home() / filename,                       # home dir
+    ]
+
+    # 1) cek kandidat lokal
+    for p in candidate_paths:
+        try:
+            if p.exists():
+                st.info(f"Membaca file dari: {p}")
+                logger.info(f"Reading Excel from {p}")
+                return try_read_excel(p)
+        except Exception as e:
+            st.warning(f"Gagal membaca {p}: {e}")
+            logger.exception(f"Failed to read {p}")
+
+    # 2) cek environment variable (opsional) — mis. path atau URL
+    env_key = "FINAL_CUSTOMER_DATA_PATH"
+    if env_key in os.environ:
+        candidate = os.environ[env_key]
+        st.info(f"Menemukan env var {env_key}; mencoba membaca {candidate}")
+        try:
+            return try_read_excel(candidate)
+        except Exception as e:
+            st.warning(f"Gagal membaca dari env var {env_key}: {e}")
+            logger.exception("Failed to read from env var path")
+
+    # 3) opsi: baca dari Google Drive shareable link (public) — user must supply direct download link
+    # Jika Anda menaruh link shareable, convert link menjadi "export?format=xlsx" atau gunakan gdown.
+    # Contoh (jika file bisa diakses publik): pd.read_excel("https://drive.google.com/uc?export=download&id=FILE_ID")
+
+    # 4) fallback uploader (interaktif)
+    st.error(f"File `{filename}` tidak ditemukan di server.")
+    st.info("Letakkan file di repo (root atau folder `data/`) lalu redeploy, atau upload file Excel di bawah sebagai fallback.")
+    uploaded = st.file_uploader("Upload file Excel (fallback)", type=["xlsx", "xls"])
+    if uploaded is not None:
+        try:
+            df = pd.read_excel(uploaded)
+            st.success("File Excel berhasil diupload dan dibaca.")
+            return df
+        except Exception as e:
+            st.error(f"Gagal membaca file yang diupload: {e}")
+            logger.exception("Failed to read uploaded file")
+
+    # 5) debug info (bantu cari file saat deploy)
+    try:
+        st.write("Working directory:", Path.cwd())
+        st.write("Isi folder saat ini (root):")
+        st.write(os.listdir(Path.cwd()))
+    except Exception as e:
+        st.write("Tidak bisa list working dir:", e)
+        logger.exception("Failed to list cwd")
+
+    return None
+
+# Panggil loader
+df = load_dataframe_with_fallback("final_customer_data.xlsx")
+
+if df is None:
+    st.stop()  # hentikan app secara rapi — mencegah crash di bawahnya
+
+# Jika df berhasil di-load, lanjutkan pipeline Anda di sini
+st.write("Preview data:")
+st.dataframe(df.head())
+
+# Contoh: jika ingin menyimpan df di session_state agar tidak reload tiap interaksi
+st.session_state.setdefault("df", df)
+# ====== Akhir blok ======
 
 # Load data
 df = pd.read_csv("/content/Food_Delivery_Times.csv")
