@@ -1,0 +1,66 @@
+import streamlit as st
+import pandas as pd
+from pathlib import Path
+import os
+
+st.title("Data loader (Excel) dengan fallback")
+
+# Kandidat path yang akan dicoba (urut dari prioritas tertinggi)
+candidate_paths = [
+    Path(__file__).resolve().parent / "final_customer_data.xlsx",  # file di folder skrip
+    Path.cwd() / "final_customer_data.xlsx",                       # working dir
+    Path("data") / "final_customer_data.xlsx",                    # folder data/
+    Path("/content") / "final_customer_data.xlsx",                # COLAB path (fallback only)
+]
+
+df = None
+for p in candidate_paths:
+    try:
+        if p.exists():
+            st.write(f"Membaca Excel dari: {p}")
+            df = pd.read_excel(p)
+            break
+    except Exception as e:
+        st.warning(f"Gagal membaca {p}: {e}")
+
+# Jika masih belum ditemukan, coba baca dari absolute path literal (jika memang sengaja pakai absolute)
+if df is None:
+    try:
+        alt = "/content/final_customer_data.xlsx"
+        if Path(alt).exists():
+            st.write(f"Membaca Excel dari: {alt}")
+            df = pd.read_excel(alt)
+    except Exception as e:
+        st.warning(f"Gagal baca {alt}: {e}")
+
+# Jika belum ada, berikan uploader sebagai fallback dan tampilkan info debugging
+if df is None:
+    st.error("File `final_customer_data.xlsx` tidak ditemukan di server.")
+    st.info(
+        "Solusi: letakkan file di repo aplikasi (root atau folder `data/`) lalu redeploy, "
+        "atau upload file Excel di bawah ini sebagai fallback."
+    )
+
+    uploaded = st.file_uploader("Upload file Excel (fallback)", type=["xlsx", "xls"])
+    if uploaded is not None:
+        try:
+            df = pd.read_excel(uploaded)
+            st.success("File Excel berhasil diupload dan dibaca.")
+        except Exception as e:
+            st.error(f"Gagal membaca file yang diupload: {e}")
+
+    # Debugging tambahan untuk membantu menemukan masalah
+    st.write("Working directory:", Path.cwd())
+    try:
+        st.write("Isi folder saat ini:", os.listdir(Path.cwd()))
+    except Exception as e:
+        st.write("Tidak bisa list working dir:", e)
+
+# Jika data sudah dibaca lanjutkan pipeline aplikasi Anda
+if df is not None:
+    st.write("Preview data:")
+    st.dataframe(df.head())
+    # lanjutkan kode Anda di sini...
+else:
+    # hentikan eksekusi agar app tidak crash lebih jauh
+    st.stop()
