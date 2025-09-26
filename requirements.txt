@@ -1,0 +1,56 @@
+streamlit
+pandas
+openpyxl
+numpy
+scikit-learn
+matplotlib
+seaborn
+
+git add requirements.txt
+git commit -m "add requirements.txt - include openpyxl"
+git push
+
+import streamlit as st
+import pandas as pd
+from pathlib import Path
+
+filename = "final_customer_data.xlsx"
+p = Path(__file__).resolve().parent / filename
+
+try:
+    # coba baca (lokal)
+    if p.exists():
+        st.info(f"Membaca file dari: {p}")
+        df = pd.read_excel(p)  # membutuhkan openpyxl untuk file .xlsx
+    else:
+        # fallback jika file ada di cwd
+        cwdf = Path.cwd() / filename
+        if cwdf.exists():
+            st.info(f"Membaca file dari working dir: {cwdf}")
+            df = pd.read_excel(cwdf)
+        else:
+            df = None
+
+except Exception as e:
+    # jika error mengandung openpyxl -> beri pesan jelas
+    msg = str(e).lower()
+    if "openpyxl" in msg:
+        st.error("Missing optional dependency 'openpyxl'. Silakan tambah `openpyxl` ke requirements.txt dan redeploy app.")
+        st.write("Contoh langkah cepat:")
+        st.code("1) buat/ubah file requirements.txt -> tambahkan: openpyxl\n2) git add, commit, push -> Streamlit akan redeploy")
+    else:
+        st.error(f"Gagal membaca Excel: {e}")
+    df = None
+
+if df is None:
+    st.warning("File tidak ditemukan atau belum bisa dibaca. Kamu bisa upload sebagai fallback.")
+    uploaded = st.file_uploader("Upload file Excel (fallback)", type=["xlsx", "xls"])
+    if uploaded is not None:
+        try:
+            df = pd.read_excel(uploaded)
+            st.success("File berhasil diupload dan dibaca.")
+        except Exception as e:
+            st.error(f"Gagal membaca file yang diupload: {e}")
+
+if df is None:
+    st.stop()
